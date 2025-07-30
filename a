@@ -1,0 +1,51 @@
+import pandas as pd
+import random
+from nltk.corpus import wordnet
+from nltk.tokenize import word_tokenize
+import nltk
+nltk.download('punkt')
+nltk.download('punkt_tab')
+nltk.download('wordnet')
+
+# Load your cleaned dataset
+df = pd.read_csv("/content/preprocessed_tweets.csv")
+
+# Synonym Replacement
+def synonym_replacement(text, n=2):
+    # Check if text is a string and not empty
+    if isinstance(text, str) and text:
+        words = word_tokenize(text)
+        new_words = words.copy()
+        random_word_list = list(set([word for word in words if wordnet.synsets(word)]))
+        random.shuffle(random_word_list)
+        num_replaced = 0
+
+        for word in random_word_list:
+            synonyms = wordnet.synsets(word)
+            if not synonyms:
+                continue
+            synonym_words = synonyms[0].lemma_names()
+            if synonym_words:
+                synonym = synonym_words[0].replace('_', ' ')
+                new_words = [synonym if w == word else w for w in new_words]
+                num_replaced += 1
+            if num_replaced >= n:
+                break
+
+        return ' '.join(new_words)
+    # If text is not a valid string, return it as is to prevent errors
+    return text
+
+# Apply to a portion of data (to augment only)
+df_augmented = df.sample(frac=0.3, random_state=42).copy()
+df_augmented["clean_tweet"] = df_augmented["clean_tweet"].apply(lambda x: synonym_replacement(x))
+
+# Label augmented data if needed (optional for classification)
+df_augmented["is_augmented"] = True
+df["is_augmented"] = False
+
+# Combine original + augmented
+df_combined = pd.concat([df, df_augmented]).reset_index(drop=True)
+df_combined.to_csv("augmented_tweets.csv", index=False)
+
+print("✅ Augmentation done. Saved as augmented_tweets.csv")
